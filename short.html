@@ -35,6 +35,13 @@ html,body{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;overscro
 body.touch{background:#000}
 :root{--sub:#737373;--line:#dbdbdb;--blue:#2f7cf6;--chip:#efefef;--ring:linear-gradient(45deg,#36d1c4,#3b8cff 55%,#7b5cff)}
 #phone{position:absolute;left:0;top:0;width:390px;height:844px;background:#000;overflow:hidden;transform-origin:0 0;--st:47px;--sb:0px}
+/* スマホ：html/bodyを固定高さにしない（iPhoneの全画面表示で下に黒い帯が出るのを防ぐ） */
+html.touch,html.touch body{position:static;inset:auto;width:auto;height:auto;margin:0;overflow:visible;touch-action:auto}
+body.touch #phone{position:fixed}
+#vfix{position:absolute;top:0;left:0;width:1px;height:100vh;height:calc(100vh + env(safe-area-inset-top,0px));visibility:hidden;pointer-events:none}
+#lvh{position:fixed;top:0;left:0;width:0;height:100vh;height:100lvh;visibility:hidden;pointer-events:none}
+/* スマホ実機ではiPhone本体のステータスバーが出るので、HTMLの電波・電池は隠す（二重表示を防ぐ） */
+body.touch.realsb #status .r{visibility:hidden}
 #probe{position:fixed;top:0;left:0;width:0;height:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);visibility:hidden;pointer-events:none}
 
 /* ステータスバー（時刻なし。右上＝電波・4G・電池）。リールでは透明・白 */
@@ -187,7 +194,7 @@ body.touch #homeind{display:none}
 </style>
 </head>
 <body class="">
-<div id="probe"></div>
+<div id="probe"></div><div id="lvh"></div>
 <div id="phone">
   <div class="scr" id="sSearch"></div>
   <div class="scr reel off" id="sMela"></div>
@@ -200,6 +207,7 @@ body.touch #homeind{display:none}
 /* ================= 設定（ここだけ書き換えればOK） ================= */
 const CFG = {
   network: '5G',
+  fakeStatusOnPhone: false,   // false＝スマホ実機ではHTMLの電波・電池を出さない（iPhone本体の表示と二重になるため）
   group: 'MÉLA',
   song:  'Get Down',
   searchWord: 'Rinya',
@@ -242,7 +250,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fillVars = s => String(s).replace(/\{rinya\}/g, CFG.rinya.id).replace(/\{mela\}/g, CFG.mela.id).replace(/\{group\}/g, CFG.group).replace(/\{song\}/g, CFG.song);
 const touch = matchMedia('(hover: none) and (pointer: coarse)').matches;
-if (touch){ document.body.classList.add('touch'); window.addEventListener('scroll', () => { if (window.scrollY) window.scrollTo(0,0); }, {passive:true}); }
+if (touch){ document.body.classList.add('touch'); document.documentElement.classList.add('touch'); { const v=document.createElement('div'); v.id='vfix'; document.body.appendChild(v); } if (!CFG.fakeStatusOnPhone) document.body.classList.add('realsb'); window.addEventListener('scroll', () => { if (window.scrollY) window.scrollTo(0,0); }, {passive:true}); }
 if (CFG.greenOnStart) document.body.classList.add('green');
 const phone = $('phone');
 
@@ -511,7 +519,11 @@ function layout(){
   const iw = window.innerWidth, ih = window.innerHeight;
   let U, Hd, left = 0, top = 0;
   if (touch){
-    U = iw / 390; Hd = ih / U;
+    U = iw / 390;
+    const standalone = window.navigator.standalone === true || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+    let full = Math.max(ih, $('lvh').getBoundingClientRect().height || 0);
+    if (standalone && iw <= ih && screen.height > full && screen.height - full < 160) full = screen.height;
+    Hd = full / U;
     const pr = getComputedStyle($('probe'));
     const st = parseFloat(pr.paddingTop)||0, sb = parseFloat(pr.paddingBottom)||0;
     phone.style.setProperty('--st', Math.max(47, st/U + 3) + 'px');
